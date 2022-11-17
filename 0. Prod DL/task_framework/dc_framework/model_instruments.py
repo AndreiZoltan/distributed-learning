@@ -54,3 +54,8 @@ class DCFramework:
             "optimizer": self.optimizer.state_dict(),
         }
         torch.save(state, path)
+
+    def load(self, path: Path, device):
+        state = torch.load(path, map_location=device)
+        self.model.load_state_dict(state["model"])
+        self.optimizer.load_state_dict(state["optimizer"])
