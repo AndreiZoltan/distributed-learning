@@ -48,6 +48,29 @@ class DCFramework:
             loss.backward()
             self.optimizer.step()
 
+    def check_accuracy(self, test_data: Dict[str, np.array], batch_size: int = 1, device: str = "cpu"):
+        test_data = Dataset(test_data)
+        test_dataloader = test_data.get_dataloader(batch_size=batch_size)
+
+        num_correct = 0
+        num_samples = 0
+        self.model.eval()
+
+        with torch.no_grad():
+            for x, y in test_dataloader:
+                x = x.to(device=device)
+                y = y.to(device=device)
+
+                scores = self.model(x)
+                _, predictions = scores.max(1)
+                num_correct += (predictions == y).sum()
+                num_samples += predictions.size(0)
+
+            print(
+                f'Got {num_correct} / {num_samples} with accuracy {float(num_correct) / float(num_samples) * 100:.2f}')
+
+        self.model.train()
+
     def save(self, path: Path):
         state = {
             "model": self.model.state_dict(),
