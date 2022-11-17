@@ -2,10 +2,10 @@ import torch
 
 
 class Dataset:
-    def __init__(self, data, dtype=torch.float32):
+    def __init__(self, data, dtype=torch.float32, device="cpu"):
         self._data = {
-            "feature": torch.from_numpy(data["feature"]).to(dtype),
-            "target": torch.from_numpy(data["target"]).to(dtype),
+            "feature": torch.from_numpy(data["feature"]).to(dtype).to(device),
+            "target": torch.from_numpy(data["target"]).to(dtype).to(device),
         }
 
         if self._data["target"].dim() == 1:
