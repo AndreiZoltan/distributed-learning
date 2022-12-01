@@ -10,32 +10,44 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 from torch.utils.data.distributed import DistributedSampler
+from torch.cuda import device_count
+from torch.distributed import (
+    get_rank,
+    get_world_size,
+    all_reduce,
+    ReduceOp,
+    init_process_group,
+)
 
 from model import Net
 
 
-def get_dataloader():
-    dataset = MNIST('./mnist', download=True, transform=transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
-    ]))
-    sampler = DistributedSampler(dataset)
-    return DataLoader(dataset, sampler=sampler, batch_size=16)
+def get_dataloader(is_distr):
+    dataset = MNIST(
+        "./mnist",
+        download=True,
+        transform=transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+        ),
+    )
+    if is_distr:
+        sampler = DistributedSampler(dataset)
+        return DataLoader(dataset, sampler=sampler, batch_size=16)
+    else:
+        return DataLoader(dataset, batch_size=16)
 
 
-def train():
-    device = f"cuda:{torch.distributed.get_rank()}"
-    local_rank = torch.distributed.get_rank()
+def train(device, is_distr):
+    # device = f"cuda:{torch.distributed.get_rank()}"
+    world_size = 1
+    if is_distr:
+        world_size = get_world_size()
     model = Net()
-    
-    if local_rank == 1:
-        sleep(10)
-    
-    print(f"Run {local_rank}")
-    
-    loader = get_dataloader()
+
+    loader = get_dataloader(is_distr)
     model.to(device)
-    model = torch.nn.parallel.DistributedDataParallel(model)
+    if is_distr:
+        model = torch.nn.parallel.DistributedDataParallel(model)
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
     steps = 0
@@ -46,14 +58,13 @@ def train():
         data = data.to(device)
         target = target.to(device)
         output = model(data)
-        loss = torch.nn.functional.cross_entropy(output, target)
+        loss = torch.nn.functional.cross_entropy(output, target) / world_size
         epoch_loss += loss.item()
+        if is_distr:
+            all_reduce(loss, op=ReduceOp.SUM)
         loss.backward()
         optimizer.step()
         steps += 1
-        
-        if (steps % 100 == 0) and (local_rank == 0):
-            subprocess.run("nvidia-smi")
 
 
 def parse_args():
@@ -65,9 +76,19 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    torch.distributed.init_process_group(
-        "nccl",
-        rank=args.local_rank,
-        world_size=args.world_size,
-    )
-    train()
+    devices = device_count()
+    is_distr = False
+    local_rank = 0
+    if devices == 0:
+        device = torch.device("cpu")
+    elif devices == 1:
+        device = torch.device("cuda")
+    else:
+        init_process_group(
+            "nccl",
+            rank=local_rank,
+            world_size=min(args.world_size, devices),
+        )
+        device = f"cuda:{get_rank()}"
+        is_distr = True
+    train(device, is_distr)
