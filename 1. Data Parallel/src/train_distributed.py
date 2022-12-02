@@ -17,6 +17,7 @@ from torch.distributed import (
     all_reduce,
     ReduceOp,
     init_process_group,
+    barrier
 )
 
 from model import Net
@@ -62,6 +63,7 @@ def train(device, is_distr):
         epoch_loss += loss.item()
         if is_distr:
             all_reduce(loss, op=ReduceOp.SUM)
+            barrier()
         loss.backward()
         optimizer.step()
         steps += 1
