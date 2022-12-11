@@ -7,7 +7,7 @@
 python train.py
 ```
 
-Для запуска `train_distributed.py` можно использовать `torch.distributed.launch`:
+Для запуска `train_distributed.py` следует использовать:
 ```
-python -m torch.distributed.launch train_distributed.py
+torchrun --nnodes 1 --nproc_per_node=2 train_distributed.py
 ```
