@@ -50,7 +50,8 @@ def train():
                     print(
                         f"Epoch: {epoch}, Step: {steps}, Loss: {epoch_loss.item()/steps:.6f}"
                     )
-            epoch_loss *= 0
+                epoch_loss *= 0
+        epoch_loss *= 0
 
 
 if __name__ == "__main__":
