@@ -30,6 +30,7 @@ def train():
     loader = get_dataloader()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     epoch_loss = torch.Tensor([0.0]).to(device)
+    i = 0
     for epoch in range(10):
         loader.sampler.set_epoch(epoch)
         for steps, (data, target) in enumerate(loader):
@@ -39,19 +40,22 @@ def train():
             output = model(data)
             loss = torch.nn.functional.cross_entropy(output, target)
             epoch_loss += loss.item() / world_size
+            i += 1
             loss.backward()
             optimizer.step()
 
-            if steps % 200 == 0 and steps > 0:
+            if i % 200 == 0 and i > 0:
                 torch.distributed.all_reduce(
                     epoch_loss, op=torch.distributed.ReduceOp.SUM
                 )
                 if local_rank == 0:
                     print(
-                        f"Epoch: {epoch}, Step: {steps}, Loss: {epoch_loss.item()/steps:.6f}"
+                        f"Epoch: {epoch}, Step: {steps+1}, Loss: {epoch_loss.item()/i:.6f}"
                     )
                 epoch_loss *= 0
+                i = 0
         epoch_loss *= 0
+        i = 0
 
 
 if __name__ == "__main__":
